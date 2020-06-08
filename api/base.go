@@ -5,7 +5,10 @@ import (
 	"log"
   "net/http"
   "os"
+  "strconv"
   "strings"
+  "regexp"
+  "time"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -73,6 +76,40 @@ func LoadMatches() {
     log.Fatal(err)
   }
 
+  // Get total records count
+  paginationStr := doc.Find(".pagination-component.pagination-top span.pagination-data").Text()
+	re := regexp.MustCompile(`of\s(\d+)`)
+	match := re.FindSubmatch([]byte(paginationStr))
+  totalCount, _ := strconv.Atoi(string(match[len(match)-1]))
+
+  for i := 0; i < totalCount; i += 50 {
+  	go getMatchesByPage(url, i)
+  }
+  fmt.Println(matches)
+}
+
+func getMatchesByPage(url string, offset int) {
+	if offset != 0 {
+		url = url + "?offset=" + strconv.Itoa(offset)
+	}
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("User-Agent", userAgent)
+
+  res, err := client.Do(req)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer res.Body.Close()
+  if res.StatusCode != 200 {
+  	fmt.Println(res)
+    log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
+  }
+
+  doc, err := goquery.NewDocumentFromReader(res.Body)
+  if err != nil {
+    log.Fatal(err)
+  }
+
   doc.Find(".stats-table.matches-table tbody tr").Each(func(i int, s *goquery.Selection) {
   	matchId, _ := s.Find("td.date-col a").Attr("href")
     match := match{
@@ -87,10 +124,10 @@ func LoadMatches() {
   	// fmt.Println(match)
   	matches = append(matches, match)
   })
+  time.Sleep(300 * time.Millisecond)
 
-  // fmt.Println(matches)
+  // fmt.Println(len(matches))
 }
-
 // func (&m match) LoadMatch(url string) {
 // 
 // }
