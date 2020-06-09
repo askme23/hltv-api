@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
   "net/http"
@@ -18,16 +19,24 @@ type match struct {
 	matchId string
 }
 
+type team struct {
+	Name string    `json:"name"`
+	KdDiff string  `json:"kdDiff"`
+	Maps int       `json:"maps"`
+	Kd float64     `json:"kd"`
+	Rating float64 `json:"rating"`
+}
+
 var (
-	teams []string
+	teams []*team
 	matches []match
 	client = &http.Client{}
 	userAgent = os.Getenv("USER_AGENT")
 )
 
-func LoadTeams() {
+func GetTeams() []byte {
 	url := os.Getenv("TEAM_URL")
-	req, _ := http.NewRequest(http.MethodGet, url + "?startDate=2020-01-01&endDate=2020-12-31", nil)
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
 	req.Header.Set("User-Agent", userAgent)
 
 	res, err := client.Do(req)
@@ -46,15 +55,56 @@ func LoadTeams() {
   }
 
   doc.Find(".stats-table.player-ratings-table tbody tr").Each(func(i int, s *goquery.Selection) {
-    name := strings.TrimSpace(s.Find("td.teamCol-teams-overview a").Text())   
-    teams = append(teams, name)
+  	maps, _ := strconv.Atoi(strings.TrimSpace(s.Find("td.statsDetail").Text()))
+  	kd, _ := strconv.ParseFloat(strings.TrimSpace(s.Find("td.statsDetail").Text()), 64)
+  	rating, _ := strconv.ParseFloat(strings.TrimSpace(s.Find("td.ratingCol").Text()), 64)
+
+  	team := &team{
+    	Name: strings.TrimSpace(s.Find("td.teamCol-teams-overview a").Text()),
+    	KdDiff: strings.TrimSpace(s.Find("td.kdDiffCol.won").Text()),
+    	Maps: maps,
+    	Kd: kd,
+    	Rating: rating,
+  	}
+
+    teams = append(teams, team)
   })
+
+  json, err := json.Marshal(teams)
+  if err != nil {
+  	log.Fatal(err)	
+  }
+
+  return json
 }
 
-func GetTeams() []string {
-	fmt.Println(teams)
-	return teams;
+func GetMatch(matchId int, confrontationName string) []byte {
+	url := os.Getenv("MATCHES_URL") + "\\" + string(matchId) + "\\" + confrontationName
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req.Header.Set("User-Agent", userAgent)
+
+  res, err := client.Do(req)
+  if err != nil {
+    log.Fatal(err)
+  }
+  defer res.Body.Close()
+  if res.StatusCode != 200 {
+  	fmt.Println(res)
+    log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
+  }
+
+  doc, err := goquery.NewDocumentFromReader(res.Body)
+  if err != nil {
+    log.Fatal(err)
+  }
+
+
 }
+
+
+
+
+
 
 func LoadMatches() {
 	url := os.Getenv("MATCHES_URL")

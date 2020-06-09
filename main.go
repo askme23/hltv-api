@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/askme23/hltv-api/api"
@@ -13,7 +14,7 @@ func main() {
     log.Fatal("Error loading .env file")
   }
 
-  api.LoadMatches()
-  // api.LoadTeams()
+  fmt.Println(string(api.GetTeams()))
+  // api.LoadMatches()
   // api.GetTeams()
 }
